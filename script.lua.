@@ -1,0 +1,183 @@
+
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "ESP_Panel"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local settings = {
+    NPC = false,
+    KEY = false,
+    CODE = false
+}
+
+local colors = {
+    NPC = Color3.fromRGB(255, 40, 40),
+    KEY = Color3.fromRGB(255, 220, 0),
+    CODE = Color3.fromRGB(0, 255, 100)
+}
+
+local tracked = {}
+
+-- Panel utama
+local panel = Instance.new("Frame")
+panel.Size = UDim2.fromOffset(180, 190)
+panel.Position = UDim2.fromOffset(15, 60)
+panel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+panel.Parent = gui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 35)
+title.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+title.Text = "ESP CONTROL"
+title.TextColor3 = Color3.new(1, 1, 1)
+title.TextSize = 17
+title.Parent = panel
+
+-- Hide / Show
+local showButton = Instance.new("TextButton")
+showButton.Size = UDim2.fromOffset(90, 30)
+showButton.Position = UDim2.fromOffset(15, 15)
+showButton.Text = "HIDE"
+showButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+showButton.TextColor3 = Color3.new(1, 1, 1)
+showButton.Parent = gui
+
+showButton.MouseButton1Click:Connect(function()
+    panel.Visible = not panel.Visible
+    showButton.Text = panel.Visible and "HIDE" or "SHOW"
+end)
+
+-- Deteksi jenis objek
+local function getType(obj)
+    if obj:IsA("Model") then
+        if obj:FindFirstChildOfClass("Humanoid")
+            and not Players:GetPlayerFromCharacter(obj) then
+            return "NPC"
+        end
+    end
+
+    local name = obj.Name:lower()
+
+    if name:find("key") or name:find("kunci") then
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            return "KEY"
+        end
+    end
+
+    if name:find("code") or name:find("kode") then
+        if obj:IsA("Model") or obj:IsA("BasePart") then
+            return "CODE"
+        end
+    end
+end
+
+local function getPart(obj)
+    if obj:IsA("BasePart") then
+        return obj
+    end
+
+    if obj:IsA("Model") then
+        return obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart", true)
+    end
+end
+
+local function removeESP(obj)
+    if tracked[obj] then
+        tracked[obj].highlight:Destroy()
+        tracked[obj].label:Destroy()
+        tracked[obj] = nil
+    end
+end
+
+local function updateESP(obj)
+    local kind = getType(obj)
+
+    if not kind then return end
+
+    if not settings[kind] then
+        removeESP(obj)
+        return
+    end
+
+    if tracked[obj] then return end
+
+    local part = getPart(obj)
+    if not part then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = colors[kind]
+    highlight.OutlineColor = colors[kind]
+    highlight.FillTransparency = 0.55
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = obj
+
+    local billboard = Instance.new("BillboardGui")
+    billboard.Size = UDim2.fromOffset(150, 35)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.Adornee = part
+    billboard.Parent = gui
+
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.fromScale(1, 1)
+    text.BackgroundTransparency = 1
+    text.Text = kind .. ": " .. obj.Name
+    text.TextColor3 = colors[kind]
+    text.TextStrokeTransparency = 0
+    text.TextSize = 14
+    text.Font = Enum.Font.GothamBold
+    text.Parent = billboard
+
+    tracked[obj] = {
+        highlight = highlight,
+        label = billboard
+    }
+end
+
+local function refresh()
+    for obj in pairs(tracked) do
+        if not obj.Parent then
+            removeESP(obj)
+        end
+    end
+
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        updateESP(obj)
+    end
+end
+
+-- Tombol ESP
+local function makeButton(kind, y)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.fromOffset(160, 35)
+    button.Position = UDim2.fromOffset(10, y)
+    button.BackgroundColor3 = colors[kind]
+    button.TextColor3 = Color3.new(0, 0, 0)
+    button.Text = kind .. " : OFF"
+    button.TextSize = 15
+    button.Parent = panel
+
+    button.MouseButton1Click:Connect(function()
+        settings[kind] = not settings[kind]
+        button.Text = kind .. (settings[kind] and " : ON" or " : OFF")
+        refresh()
+    end)
+end
+
+makeButton("NPC", 45)
+makeButton("KEY", 90)
+makeButton("CODE", 135)
+
+workspace.DescendantAdded:Connect(function(obj)
+    task.wait(0.2)
+    updateESP(obj)
+end)
+
+workspace.DescendantRemoving:Connect(function(obj)
+    removeESP(obj)
+end)
+
+refresh()
